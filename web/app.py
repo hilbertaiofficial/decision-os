@@ -147,7 +147,9 @@ def create_app(test_config=None):
                      'Keep replies short and friendly; sign emails as Alex.'):
             store.insert('preferences',{'org_id':org['id'],'rule':rule,'created_by':user['id'],'created':time.time()})
         session.clear();session['auth_token']=accounts.new_session(user);session['org']=org['id']
-        flash('Demo workspace ready with sample accounts. Run a briefing to see Gemini connect the dots.','success')
+        try:service.request_run(org['id'],user['id'])
+        except ValueError:pass
+        flash('Demo workspace ready. Gemini is reading the sample Gmail, Calendar, Jira, Slack and GitHub data now; results appear in a few seconds.','success')
         return redirect(url_for('index'))
 
     @app.route('/signup',methods=['GET','POST'])
@@ -386,7 +388,10 @@ def create_app(test_config=None):
 
     @app.post('/sample')
     def sample():
-        service.seed(org_id());store.setting('mode','demo',org_id());flash('Sample accounts are ready. No external actions will be sent.','success');return back()
+        service.seed(org_id());store.setting('mode','demo',org_id())
+        try:service.request_run(org_id(),g.user['id'])
+        except ValueError:pass
+        flash('Sample accounts are ready and a briefing has started. No external actions will be sent.','success');return back()
 
     @app.post('/run')
     def run():
