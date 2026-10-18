@@ -36,14 +36,23 @@
 6. The worker executes the approved action. It is marked **succeeded** only after the provider confirms it. If a write times out or is interrupted, it becomes **uncertain** and is never resent automatically.
 7. The briefing, the decisions, approvals and outcomes stay in the activity history.
 
+## Ask DecisionOS (direct mode)
+
+Type a request on the Overview page, for example *"Create a Jira bug for the EU checkout errors, tell #incidents I own customer comms, and set up a 30 minute review tomorrow at 11am IST with priya@acmeretail.example"*. Gemini turns it into previewed actions with two typed tools:
+
+- `act_on_item`: reply, comment, RSVP or transition on an item DecisionOS already synced.
+- `create_new`: new work that isn't tied to an item: `email_send`, `calendar_create`, `jira_create`, `slack_post`.
+
+Every action lands in the decision queue as an editable preview, is re-validated on approval, and executes only after a person approves it. Gemini asks for missing details (for example an unknown email address) instead of guessing. Code: [`gemini.ask`](src/decisionos/gemini.py), [`Service.ask`](src/decisionos/service.py).
+
 ## Implemented connectors
 
 | Tool | Reads | Executes (after approval unless noted) |
 |---|---|---|
-| Gmail | Unread inbox messages, thread metadata | Save draft (auto), mark read (optional auto), send reply in thread |
-| Google Calendar | Upcoming events, pending invitations | Accept / decline / tentative, with conflict check |
-| Jira Cloud | Issues from your JQL across selected sites | Comment, workflow transition (resolved against real transitions) |
-| Slack | Recent messages in up to five selected channels | Bot reply in the source thread |
+| Gmail | Unread inbox messages, thread metadata | Save draft (auto), mark read (optional auto), send reply in thread, send a new email (Ask) |
+| Google Calendar | Upcoming events, pending invitations | Accept / decline / tentative, with conflict check; create an event (Ask) |
+| Jira Cloud | Issues from your JQL across selected sites | Comment, workflow transition (resolved against real transitions), create an issue (Ask) |
+| Slack | Recent messages in up to five selected channels | Bot reply in the source thread, new message in a selected channel (Ask) |
 | GitHub | Issues and PRs in selected repositories | Comment, close |
 
 Workspaces support several organizations, owner/admin/member/viewer roles, invitations, TOTP two-factor authentication and per-organization preferences.
