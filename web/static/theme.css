@@ -183,3 +183,21 @@ textarea:focus,input:focus,select:focus{border-color:var(--blue)}
 summary{background:transparent}
 .organization-menu summary,.organization-menu[open] summary{border:1px solid var(--line)!important}
 .organization-menu{border:0!important;background:transparent!important}
+
+/* Overview flows with the page (no viewport lock) so empty and long states never overlap the footer. */
+@media(min-width:801px){
+  body:has(#briefing) .workspace{height:auto;min-height:100vh;overflow:visible}
+  body:has(#briefing) main{display:block;overflow:visible;min-height:0}
+  body:has(#briefing) .dashboard-grid{flex:none;align-items:start}
+  body:has(#briefing) .dashboard-grid>.panel{min-height:420px}
+  body:has(#briefing) .digest{max-height:520px;overflow-y:auto}
+  body:has(#briefing) .decisions-scroll{max-height:460px;overflow-y:auto}
+  body:has(#briefing) .empty{padding:36px 12px 20px}
+  .sidebar{position:sticky;top:0;height:100vh}
+}
+#briefing.page-heading{padding:30px 36px}
+.empty-symbol{display:grid;place-items:center;width:64px;height:64px;margin:0 auto 14px;border-radius:20px;font-size:30px;color:var(--blue);background:linear-gradient(135deg,#e8f0fe,#e6f4ea)}
+.empty h3{font-family:var(--display);font-weight:800;font-size:26px}
+.steps{margin-top:26px}
+.steps span{border-color:var(--blue-100);background:var(--blue-50);color:var(--blue-600);font-weight:700}
+.guide-item{margin-bottom:14px}
