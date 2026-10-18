@@ -8,3 +8,6 @@ __pycache__/
 .claude/
 .idea/
 .DS_Store
+submission/tpl/
+submission/qa/
+submission/qa2/
