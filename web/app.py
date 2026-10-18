@@ -95,7 +95,7 @@ def create_app(test_config=None):
     @app.after_request
     def headers(response):
         response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer',
-            'Content-Security-Policy':"default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://www.gstatic.com https://apis.google.com; style-src 'self'; img-src 'self' data: https://*.googleusercontent.com; frame-src https://challenges.cloudflare.com https://*.firebaseapp.com https://*.web.app https://accounts.google.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com https://*.atlassian.com https://slack.com https://github.com"})
+            'Content-Security-Policy':"default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://www.gstatic.com https://apis.google.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.googleusercontent.com; frame-src https://challenges.cloudflare.com https://*.firebaseapp.com https://*.web.app https://accounts.google.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com https://*.atlassian.com https://slack.com https://github.com"})
         if app.config['PRODUCTION']:response.headers['Strict-Transport-Security']='max-age=31536000'
         if request.endpoint!='static':response.headers['Cache-Control']='no-store'
         return response
