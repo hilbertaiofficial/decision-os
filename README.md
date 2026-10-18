@@ -1,7 +1,7 @@
 <img src="web/static/logo.svg" alt="DecisionOS" height="56">
 
 
-**Connect the dots. Get work done.** DecisionOS is the decision and execution layer for the human-agent workforce, built by **Hilbert AI**. Its first experience, **Chief of Staff AI**, connects Gmail, Google Calendar, Jira, Slack and GitHub. It finds the decision hidden across those tools, recommends a grounded next step, and carries out the approved action with an audit trail.
+**Connect the dots. Get work done.** DecisionOS is the decision and execution layer for the human-agent workforce, built by **Hilbert AI**. It connects Gmail, Google Calendar, Jira, Slack and GitHub. It finds the decision hidden across those tools, recommends a grounded next step, and carries out the approved action with an audit trail.
 
 > A client asks in Gmail for mobile scope in Friday's release. Jira shows the mobile issue blocked. Slack asks whether the scope is in. DecisionOS groups those three signals into **one decision**, cites the evidence, drafts the client reply, the Jira comment and the Slack update, and waits for your approval before anything leaves the building.
 

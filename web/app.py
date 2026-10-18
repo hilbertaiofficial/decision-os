@@ -1,4 +1,4 @@
-"""DecisionOS portal (Chief of Staff AI). Tenant authorization is checked on every request."""
+"""DecisionOS portal. Tenant authorization is checked on every request."""
 from __future__ import annotations
 from datetime import datetime, timezone
 import hmac
