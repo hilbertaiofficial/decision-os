@@ -1,0 +1,17 @@
+# Web portal
+flask>=3.0.0
+gunicorn>=23.0.0
+python-dotenv>=1.0.0
+requests>=2.32.0
+markdown-it-py>=3.0,<5
+
+# Google Cloud: Firestore (data), Gemini on Vertex AI (agent), Firebase Authentication (sign-in)
+google-cloud-firestore>=2.19.0
+google-genai>=1.20.0
+firebase-admin>=6.5.0
+
+# Encrypted OAuth token storage and account security
+cryptography>=43.0.0
+pyotp>=2.9.0
+qrcode>=7.4,<8
+pillow>=10.0.0
