@@ -37,6 +37,13 @@ create_secret() {
 create_secret decisionos-flask-secret "$(python3 -c 'import secrets;print(secrets.token_hex(32))')"
 create_secret decisionos-encryption-key "$(python3 -c 'import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
 
+# Optional Google OAuth client: "Continue with Google" sign-in fallback and the Gmail/Calendar connector.
+SECRET_MOUNTS="FLASK_SECRET_KEY=decisionos-flask-secret:latest,COS_ENCRYPTION_KEY=decisionos-encryption-key:latest"
+if [ -n "${GOOGLE_CLIENT_ID:-}" ] && [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
+  create_secret decisionos-google-client-secret "$GOOGLE_CLIENT_SECRET"
+  SECRET_MOUNTS+=",GOOGLE_CLIENT_SECRET=decisionos-google-client-secret:latest"
+fi
+
 echo "==> Service account"
 gcloud iam service-accounts describe "$SA" >/dev/null 2>&1 || \
   gcloud iam service-accounts create "$SA_NAME" --display-name="DecisionOS Cloud Run"
@@ -48,12 +55,13 @@ echo "==> Cloud Run deploy ($BASE_URL)"
 ENV_VARS="COS_ENV=production,COS_BASE_URL=${BASE_URL},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global"
 ENV_VARS+=",GOOGLE_GENAI_USE_VERTEXAI=true,GEMINI_MODEL=${GEMINI_MODEL},COS_WORKER_INLINE=1"
 [ -n "${FIREBASE_API_KEY:-}" ] && ENV_VARS+=",FIREBASE_API_KEY=${FIREBASE_API_KEY}"
+[ -n "${GOOGLE_CLIENT_ID:-}" ] && ENV_VARS+=",GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"
 [ -n "${EXTRA_ENV_VARS:-}" ] && ENV_VARS+=",${EXTRA_ENV_VARS}"
 gcloud run deploy "$SERVICE" --source . --region "$REGION" --service-account "$SA" \
   --allow-unauthenticated --min-instances 1 --max-instances 1 --no-cpu-throttling \
   --cpu 1 --memory 1Gi --timeout 300 \
   --set-env-vars "$ENV_VARS" \
-  --set-secrets "FLASK_SECRET_KEY=decisionos-flask-secret:latest,COS_ENCRYPTION_KEY=decisionos-encryption-key:latest"
+  --set-secrets "$SECRET_MOUNTS"
 
 LEGACY_HOST="$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)' | sed 's#https://##')"
 gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars "COS_ALLOWED_HOSTS=${LEGACY_HOST}" >/dev/null
@@ -61,4 +69,5 @@ gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars "COS_
 echo
 echo "Deployed: ${BASE_URL}"
 echo "Health:   ${BASE_URL}/health"
+echo "Google OAuth redirect URIs to register: ${BASE_URL}/auth/google/callback and ${BASE_URL}/oauth/google/callback"
 echo "Add ${SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app and ${LEGACY_HOST} to Firebase Authentication > Settings > Authorized domains."

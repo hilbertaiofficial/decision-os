@@ -68,7 +68,7 @@ def create_app(test_config=None):
     public={'login','signup','verify','forgot_password','reset_password','health','static','privacy','terms','invitation','google_login_start','google_login_callback','firebase_login','guest_demo','billing_webhook','login_2fa'}
     admin={'settings','connect','disconnect','channels','save_channels','sites','repos','save_repos','invite_member','revoke_invite','billing_checkout'}
     member={'run','approve','dismiss','preference','delete_preference','sample'}
-    guest_blocked={'connect','callback','invite_member','billing_checkout','add_org','totp_setup','totp_enable'}
+    guest_blocked={'invite_member','billing_checkout','add_org','totp_setup','totp_enable'}
     @app.before_request
     def guard():
         host=urlparse(request.host_url).hostname
@@ -87,7 +87,7 @@ def create_app(test_config=None):
                 return redirect(url_for('login'))
             if not g.user['verified'] and request.endpoint not in {'verification_pending','resend_verification','logout','account','delete_account'}:
                 return redirect(url_for('verification_pending'))
-        if g.user and g.user.get('guest') and request.endpoint in guest_blocked:abort(403,'Demo workspaces use sample accounts only. Sign in with Google to connect your own tools.')
+        if g.user and g.user.get('guest') and request.endpoint in guest_blocked:abort(403,'Demo workspaces cannot invite members, add organizations or change billing. Sign in with Google for a full workspace.')
         if request.endpoint in admin:require_role('owner','admin')
         elif request.endpoint in member:require_role('owner','admin','member')
         if request.method=='POST':limit('post:'+ (g.user['id'] if g.user else request.remote_addr),120,60)
