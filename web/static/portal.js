@@ -85,6 +85,12 @@ document.querySelectorAll('[data-dialog]').forEach(button => {
 document.querySelectorAll('[data-close-dialog]').forEach(button => {
   button.addEventListener('click', () => button.closest('dialog').close());
 });
+document.querySelectorAll('[data-fill]').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const box = document.getElementById('ask-input');
+    if (box) { box.value = chip.dataset.fill; box.focus(); }
+  });
+});
 document.querySelectorAll('[data-refresh]').forEach(button => {
   button.addEventListener('click', () => location.reload());
 });

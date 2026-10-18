@@ -403,8 +403,8 @@ def create_app(test_config=None):
         limit('ask:'+g.user['id'],20,3600)
         text=request.form.get('request','').strip()
         reply,created=service.ask(org_id(),g.user['id'],text)
-        flash(f'{len(created)} action{"s" if len(created)!=1 else ""} ready for your approval.' if created else 'Gemini needs a bit more detail. See the reply below.','success' if created else 'info')
-        return back()
+        flash(reply,'success' if created else 'info')
+        return back('decisions') if created else back()
 
     @app.post('/actions/<aid>/approve')
     def approve(aid):
