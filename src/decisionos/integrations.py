@@ -238,6 +238,18 @@ class GoogleConnector:
 
     def execute(self, action, source):
         payload, kind = action['payload'], action['kind']
+        if kind == 'email_send':
+            message = EmailMessage()
+            message['To'] = ', '.join(e.strip() for e in payload['to'].split(',') if e.strip())
+            message['Subject'] = payload['subject']
+            message.set_content(payload['body'])
+            response = self.http.request('POST', '/gmail/v1/users/me/messages/send', body={'raw': base64.urlsafe_b64encode(message.as_bytes()).decode()})
+            return {'detail': 'Email sent to ' + message['To'] + '.', 'provider_id': response.get('id')}
+        if kind == 'calendar_create':
+            attendees = [{'email': e.strip()} for e in payload['attendees'].split(',') if e.strip()]
+            event = self.http.request('POST', '/calendar/v3/calendars/primary/events', params={'sendUpdates': 'all'},
+                                      body={'summary': payload['title'], 'start': {'dateTime': payload['start']}, 'end': {'dateTime': payload['end']}, 'attendees': attendees})
+            return {'detail': 'Calendar event created: ' + payload['title'] + '.', 'provider_id': event.get('id'), 'url': event.get('htmlLink')}
         mid = quote(source['external_id'], safe='')
         if kind in ('email_draft', 'email_reply'):
             # Re-read authoritative headers; model output can never choose a new recipient.
@@ -316,6 +328,13 @@ class JiraConnector:
         return result
 
     def execute(self, action, source):
+        if action['kind'] == 'jira_create':
+            payload, site = action['payload'], source['data']['site']
+            fields = {'project': {'key': payload['project']}, 'summary': payload['summary'], 'issuetype': {'name': payload['issue_type']}}
+            if payload['description'].strip(): fields['description'] = adf(payload['description'])
+            created = self.http.request('POST', '/rest/api/3/issue', site=site, body={'fields': fields})
+            check = self.http.request('GET', '/rest/api/3/issue/' + quote(created['key'], safe=''), site=site, params={'fields': 'summary'})
+            return {'detail': 'Created ' + check['key'] + ' in Jira.', 'provider_id': check['key']}
         site, key = source['data']['site'], quote(source['data']['key'], safe='')
         payload = action['payload']
         if action['kind'] == 'jira_comment':
@@ -397,6 +416,12 @@ class SlackConnector:
         return result
 
     def execute(self, action, source):
+        if action['kind'] == 'slack_post':
+            channel = action['payload']['channel']
+            if channel not in [c['id'] for c in self.metadata.get('channels', [])]:
+                raise IntegrationError('This channel is no longer selected. Review its connection settings.')
+            result = self.http.request('POST', '/chat.postMessage', body={'channel': channel, 'text': action['payload']['body'].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'), 'mrkdwn': False, 'parse': 'none', 'unfurl_links': False, 'unfurl_media': False})
+            return {'detail': 'Message posted in #' + source['data'].get('channel_name', '') + '.', 'provider_id': result.get('ts')}
         if action['kind'] != 'slack_reply': raise ValueError('Unsupported Slack action')
         if source['data']['channel'] not in [c['id'] for c in self.metadata.get('channels', [])]:
             raise IntegrationError('This channel is no longer selected. Review its connection settings.')

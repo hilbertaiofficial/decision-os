@@ -1,5 +1,6 @@
 """Work collection, Gemini planning, policy gating, and durable action execution."""
 import hashlib
+import re
 import json
 import time
 from datetime import datetime, timedelta, timezone
@@ -17,7 +18,28 @@ ACTION_KINDS = {
     'slack_reply': ('slack', 'Reply in Slack thread', {'body'}),
     'github_comment': ('github', 'Post GitHub comment', {'body'}),
     'github_close': ('github', 'Close GitHub issue/PR', set()),
+    # Direct mode ("Ask DecisionOS"): new work requested by a person, not tied to a synced item.
+    'email_send': ('email', 'Send new email', {'to', 'subject', 'body'}),
+    'calendar_create': ('calendar', 'Create calendar event', {'title', 'start', 'end', 'attendees'}),
+    'jira_create': ('jira', 'Create Jira issue', {'project', 'summary', 'description', 'issue_type'}),
+    'slack_post': ('slack', 'Post Slack message', {'channel', 'body'}),
 }
+COMMAND_KINDS = {'email_send': 'google', 'calendar_create': 'google', 'jira_create': 'jira', 'slack_post': 'slack'}
+EMAIL_RE = re.compile(r'[^\s@<>,]+@[^\s@<>,]+\.[^\s@<>,]+')
+
+
+def email_list(value, limit):
+    emails = [v.strip() for v in str(value or '').split(',') if v.strip()]
+    if len(emails) > limit or any(not EMAIL_RE.fullmatch(e) for e in emails):
+        raise ValueError(f'Enter up to {limit} valid email addresses, separated by commas.')
+    return emails
+
+
+def parse_time(value):
+    try: when = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except ValueError: raise ValueError('Use a full date and time, for example 2026-10-20T15:00:00+05:30.') from None
+    if when.tzinfo is None: raise ValueError('Include a time zone in the start and end time.')
+    return when
 
 
 def decode(row):
@@ -124,6 +146,22 @@ class Service:
             raise ValueError('Choose a valid response to a pending invitation.')
         if kind == 'jira_transition' and (not isinstance(payload['transition'], str) or not 1 <= len(payload['transition'].strip()) <= 100):
             raise ValueError('Enter the name of a valid Jira transition.')
+        if kind == 'email_send':
+            if not email_list(payload['to'], 10): raise ValueError('Add at least one recipient.')
+            if not isinstance(payload['subject'], str) or not 1 <= len(payload['subject'].strip()) <= 200: raise ValueError('Write a subject up to 200 characters.')
+        if kind == 'calendar_create':
+            if not isinstance(payload['title'], str) or not 1 <= len(payload['title'].strip()) <= 200: raise ValueError('Give the event a title up to 200 characters.')
+            start, end = parse_time(payload['start']), parse_time(payload['end'])
+            if not timedelta(minutes=5) <= end - start <= timedelta(hours=8): raise ValueError('Events must last between 5 minutes and 8 hours.')
+            email_list(payload['attendees'], 20)
+        if kind == 'jira_create':
+            if not re.fullmatch(r'[A-Z][A-Z0-9_]{1,9}', str(payload['project'])): raise ValueError('Use a Jira project key such as ACME.')
+            if not isinstance(payload['summary'], str) or not 1 <= len(payload['summary'].strip()) <= 250: raise ValueError('Write an issue summary up to 250 characters.')
+            if not isinstance(payload['description'], str) or len(payload['description']) > 12000: raise ValueError('Keep the description under 12,000 characters.')
+            if payload['issue_type'] not in ('Task', 'Bug', 'Story'): raise ValueError('Choose Task, Bug or Story.')
+        if kind == 'slack_post':
+            if len(payload['body']) > 4000: raise ValueError('Keep Slack messages under 4,000 characters.')
+            if payload['channel'] != source['data'].get('channel'): raise ValueError('The Slack channel cannot be changed after the request.')
 
     def propose(self,org_id,mode,iid,kind,payload,reason):
         self.store.check_execution()
@@ -248,6 +286,81 @@ class Service:
             return self.propose(org, mode, item_id, action_kind, payload, reason)
         return gemini.plan(context, propose_action, gemini_client)
 
+    def command_connection(self, org_id, mode, kind):
+        provider = COMMAND_KINDS[kind]
+        for conn in self.store.connections(mode, org_id):
+            if conn['provider'] == provider and conn['status'] == 'connected': return conn
+        raise ValueError('No connected ' + {'google': 'Google', 'jira': 'Jira', 'slack': 'Slack'}[provider] + ' account in this workspace.')
+
+    def propose_command(self, org_id, mode, command, kind, payload, reason):
+        """Prepare new work a person asked for. Always waits for human approval."""
+        if kind not in COMMAND_KINDS: raise ValueError('Unsupported action.')
+        if not isinstance(reason, str) or not reason.strip(): raise ValueError('Explain why this action is useful.')
+        payload = {k: (v.strip() if isinstance(v, str) else v) for k, v in dict(payload).items() if k in ACTION_KINDS[kind][2]}
+        payload = {k: payload.get(k, '') for k in ACTION_KINDS[kind][2]}
+        conn = self.command_connection(org_id, mode, kind)
+        data = {}
+        if kind == 'slack_post':
+            channels = {c['id']: c['name'] for c in conn['metadata'].get('channels', [])}
+            if payload['channel'] not in channels:
+                match = next((cid for cid, name in channels.items() if name == str(payload['channel']).lstrip('#')), None)
+                if not match: raise ValueError('Choose one of the selected Slack channels: ' + ', '.join('#' + n for n in channels.values()))
+                payload['channel'] = match
+            data = {'channel': payload['channel'], 'channel_name': channels[payload['channel']]}
+        if kind == 'jira_create':
+            sites = conn['metadata'].get('selected_sites', [])
+            data = {'site': sites[0] if sites else 'demo'}
+            payload['project'] = str(payload['project']).upper()
+        titles = {'email_send': lambda: 'Email to ' + payload['to'] + ' · ' + payload['subject'],
+                  'calendar_create': lambda: 'New event · ' + payload['title'],
+                  'jira_create': lambda: 'New ' + str(payload['issue_type']) + ' in ' + payload['project'] + ' · ' + payload['summary'],
+                  'slack_post': lambda: '#' + data.get('channel_name', '') + ' · new message'}
+        snapshot = {'id': None, 'kind': ACTION_KINDS[kind][0], 'external_id': 'command:' + command['id'], 'title': titles[kind]()[:200],
+                    'body': command['text'], 'data': data, 'revision': 'command'}
+        self.validate(kind, payload, snapshot)
+        fingerprint = hashlib.sha256(json.dumps([org_id, command['id'], kind, payload], sort_keys=True).encode()).hexdigest()
+        existing = self.store.one('actions', {'fingerprint': fingerprint})
+        if existing: return {'id': existing['id'], 'status': existing['status']}
+        action = self.store.insert('actions', {'org_id': org_id, 'mode': mode, 'item_id': None, 'connection_id': conn['id'], 'origin': 'command',
+            'command_id': command['id'], 'title': snapshot['title'], 'label': conn['label'], 'kind': kind, 'payload': payload, 'snapshot': snapshot,
+            'reason': reason[:2000], 'status': 'proposed', 'approved_by': None, 'result': None, 'error': None,
+            'created': time.time(), 'updated': time.time(), 'fingerprint': fingerprint})
+        return {'id': action['id'], 'status': 'proposed', 'title': snapshot['title']}
+
+    def ask(self, org, actor, text, gemini_client=None):
+        """Direct mode: turn a request into previewed actions that wait for approval."""
+        self.authorize(org, actor, ('owner', 'admin', 'member'))
+        text = (text or '').strip()
+        if not 1 <= len(text) <= 1000: raise ValueError('Ask in up to 1,000 characters.')
+        if not gemini.configured() and gemini_client is None: raise ValueError('Ask DecisionOS needs Gemini. Configure Vertex AI or a Gemini API key.')
+        settings = self.store.settings(org); mode = settings['mode']
+        command = self.store.insert('commands', {'org_id': org, 'user_id': actor, 'text': text, 'reply': None, 'status': 'running', 'created': time.time()})
+        items = self.store.find('items', {'org_id': org, 'mode': mode}, sort=[('updated', -1)], limit=80)
+        connections = [c for c in self.store.connections(mode, org) if c['status'] == 'connected']
+        context = {'now_utc': datetime.now(timezone.utc).isoformat(timespec='minutes'),
+                   'connected_tools': sorted({c['provider'] for c in connections}),
+                   'slack_channels': [{'id': ch['id'], 'name': ch['name']} for c in connections if c['provider'] == 'slack' for ch in c['metadata'].get('channels', [])],
+                   'jira_projects': sorted({i['data']['key'].split('-')[0] for i in items if i['kind'] == 'jira' and i['data'].get('key')}),
+                   'preferences': [r['rule'] for r in self.store.find('preferences', {'org_id': org}, sort=[('created', 1)])],
+                   'items': [{'id': i['id'], 'kind': i['kind'], 'title': i['title'], 'body': (i.get('body') or '')[:400],
+                              'data': {k: i['data'].get(k) for k in ('key', 'status', 'priority', 'sender', 'channel_name', 'repo', 'number', 'pending') if k in i['data']}} for i in items]}
+        allowed = {i['id'] for i in items}
+        created = []
+        def act_on_item(item_id, action_kind, payload, reason):
+            if item_id not in allowed: raise ValueError('Item is outside this workspace.')
+            result = self.propose(org, mode, item_id, action_kind, payload, reason); created.append(result); return result
+        def create_new(action_kind, fields, reason):
+            result = self.propose_command(org, mode, command, action_kind, fields, reason); created.append(result); return result
+        try:
+            reply = gemini.ask(text, context, act_on_item, create_new, gemini_client)
+            self.store.update('commands', {'id': command['id']}, {'reply': reply, 'status': 'done', 'actions': len(created)})
+        except Exception as exc:
+            message = str(exc) if isinstance(exc, ValueError) else 'Gemini could not finish this request. Try again.'
+            self.store.update('commands', {'id': command['id']}, {'reply': message, 'status': 'failed'})
+            raise ValueError(message) from None
+        self.store.event('Ask DecisionOS: ' + text[:120], org_id=org, actor=actor)
+        return reply, created
+
     def approve(self,aid,org,payload=None,actor=None):
         self.authorize(org,actor,('owner','admin','member'))
         action=self.action(aid,org)
@@ -283,8 +396,9 @@ class Service:
             if settings['mode']!=connection['mode']:raise ValueError('The workspace mode changed; review before retrying.')
             source=action['snapshot']
             if not self.in_scope(connection,source):raise IntegrationError('The source is no longer selected.')
-            current=self.source(action['item_id'],action['org_id'])
-            if current['revision']!=source['revision']:raise IntegrationError('The source changed. Run a new briefing.')
+            if action.get('origin')!='command':
+                current=self.source(action['item_id'],action['org_id'])
+                if current['revision']!=source['revision']:raise IntegrationError('The source changed. Run a new briefing.')
             self.validate(action['kind'],action['payload'],source)
             if connection['mode']=='demo':result={'detail':ACTION_KINDS[action['kind']][1]+' completed in the sample simulation. No external write was made.'}
             else:result=self.connector(connection).execute(action,source)

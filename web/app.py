@@ -67,7 +67,7 @@ def create_app(test_config=None):
 
     public={'login','signup','verify','forgot_password','reset_password','health','static','privacy','terms','invitation','google_login_start','google_login_callback','firebase_login','guest_demo','billing_webhook','login_2fa'}
     admin={'settings','connect','disconnect','channels','save_channels','sites','repos','save_repos','invite_member','revoke_invite','billing_checkout'}
-    member={'run','approve','dismiss','preference','delete_preference','sample'}
+    member={'run','approve','dismiss','preference','delete_preference','sample','ask'}
     guest_blocked={'invite_member','billing_checkout','add_org','totp_setup','totp_enable'}
     @app.before_request
     def guard():
@@ -278,7 +278,8 @@ def create_app(test_config=None):
             providers=PROVIDERS,configured={p:configured(p) for p in PROVIDERS},callbacks={p:redirect_uri(p) for p in PROVIDERS},
             owner_login=True,worker_online=bool(lease and lease['expires']>time.time()),page=request.args.get('view','briefing'),
             membership=membership,can_manage=membership['role'] in ('owner','admin'),can_act=membership['role']!='viewer',members=members,
-            invitations=store.find('invitations',{'org_id':org}) if membership['role'] in ('owner','admin') else [])
+            invitations=store.find('invitations',{'org_id':org}) if membership['role'] in ('owner','admin') else [],
+            commands=store.find('commands',{'org_id':org},sort=[('created',-1)],limit=3))
 
     @app.get('/api/status')
     def status():
@@ -396,6 +397,14 @@ def create_app(test_config=None):
     @app.post('/run')
     def run():
         service.request_run(org_id(),g.user['id']);flash('Briefing queued.','success');return back()
+
+    @app.post('/ask')
+    def ask():
+        limit('ask:'+g.user['id'],20,3600)
+        text=request.form.get('request','').strip()
+        reply,created=service.ask(org_id(),g.user['id'],text)
+        flash(f'{len(created)} action{"s" if len(created)!=1 else ""} ready for your approval.' if created else 'Gemini needs a bit more detail. See the reply below.','success' if created else 'info')
+        return back()
 
     @app.post('/actions/<aid>/approve')
     def approve(aid):
