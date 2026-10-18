@@ -140,7 +140,7 @@ def create_app(test_config=None):
         limit('guest-demo-ip:'+request.remote_addr,10,3600)
         user=store.insert('users',{'email':'guest-'+secrets.token_hex(6)+'@demo.decisionos.app','name':'Demo user','password_hash':accounts_dummy_hash,
             'verified':True,'guest':True,'created':time.time()})
-        org=store.create_organization(user['id'],'Acme · Release team (demo)')
+        org=store.create_organization(user['id'],'Acme · Release team (demo)',mode='demo')
         for rule in service.DEMO_PREFERENCES:
             store.insert('preferences',{'org_id':org['id'],'rule':rule,'created_by':user['id'],'created':time.time()})
         preloaded=service.clone_demo(org['id'])
