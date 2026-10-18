@@ -35,8 +35,8 @@ def create_app(test_config=None):
     if app.config['PRODUCTION']:
         if not app.config['BASE_URL'].startswith('https://') or not app.config['SECRET_KEY'] or len(app.config['SECRET_KEY'])<32:
             raise RuntimeError('Production needs HTTPS COS_BASE_URL and a stable FLASK_SECRET_KEY of at least 32 characters.')
-        if not (os.getenv('SMTP_HOST') and os.getenv('SMTP_FROM')) and not firebase_auth.configured():
-            raise RuntimeError('Production needs Firebase Authentication or SMTP_HOST and SMTP_FROM for account email.')
+        if not (os.getenv('SMTP_HOST') and os.getenv('SMTP_FROM')) and not firebase_auth.configured() and not configured('google'):
+            raise RuntimeError('Production needs Firebase Authentication, Google sign-in, or SMTP_HOST and SMTP_FROM for account email.')
     if not app.config['SECRET_KEY']:app.secret_key=secrets.token_hex(32)
     setup_error=None
     try:store=configured_store if configured_store is not None else Store.from_env()

@@ -9,7 +9,7 @@
 
 | | |
 |---|---|
-| Live prototype | `https://decisionos-<project-number>.asia-south1.run.app` (click **Try the live demo**, no sign-up) |
+| Live prototype | https://decisionos-8827317512.asia-south1.run.app (click **Try the live demo**, no sign-up) |
 | Demo video | See the submission form |
 | Architecture | [docs/architecture.md](docs/architecture.md) |
 | Deploy | [deploy/README.md](deploy/README.md) |

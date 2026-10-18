@@ -51,17 +51,24 @@ for role in roles/datastore.user roles/aiplatform.user roles/secretmanager.secre
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$SA" --role="$role" --condition=None >/dev/null
 done
 
+echo "==> Build permissions"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role=roles/cloudbuild.builds.builder --condition=None >/dev/null
+
 echo "==> Cloud Run deploy ($BASE_URL)"
 ENV_VARS="COS_ENV=production,COS_BASE_URL=${BASE_URL},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global"
 ENV_VARS+=",GOOGLE_GENAI_USE_VERTEXAI=true,GEMINI_MODEL=${GEMINI_MODEL},COS_WORKER_INLINE=1"
 [ -n "${FIREBASE_API_KEY:-}" ] && ENV_VARS+=",FIREBASE_API_KEY=${FIREBASE_API_KEY}"
 [ -n "${GOOGLE_CLIENT_ID:-}" ] && ENV_VARS+=",GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"
 [ -n "${EXTRA_ENV_VARS:-}" ] && ENV_VARS+=",${EXTRA_ENV_VARS}"
-gcloud run deploy "$SERVICE" --source . --region "$REGION" --service-account "$SA" \
-  --allow-unauthenticated --min-instances 1 --max-instances 1 --no-cpu-throttling \
+gcloud run deploy "$SERVICE" --quiet --source . --region "$REGION" --service-account "$SA" \
+  --min-instances 1 --max-instances 1 --no-cpu-throttling \
   --cpu 1 --memory 1Gi --timeout 300 \
   --set-env-vars "$ENV_VARS" \
   --set-secrets "$SECRET_MOUNTS"
+
+# Public access. --no-invoker-iam-check also works where an org policy forbids allUsers bindings.
+gcloud run services update "$SERVICE" --region "$REGION" --no-invoker-iam-check --quiet >/dev/null
 
 LEGACY_HOST="$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)' | sed 's#https://##')"
 gcloud run services update "$SERVICE" --region "$REGION" --update-env-vars "COS_ALLOWED_HOSTS=${LEGACY_HOST}" >/dev/null
