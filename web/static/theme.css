@@ -272,3 +272,7 @@ main .page-heading h1,main .page-heading>div>p,main .page-heading .eyebrow{posit
 main .page-heading{justify-content:flex-end;align-items:center;margin-bottom:18px;min-height:0}
 main .page-heading:not(:has(button,form,a.btn)){margin:0;height:0}
 #briefing.page-heading.overview-head{padding:0}
+
+/* Full-width settings; borderless brand mark */
+.settings-form{max-width:none}
+.app-brand-icon,.brand .app-brand-icon,.mobile-brand .app-brand-icon,.auth-split>.auth-brand .app-brand-icon{border-radius:0!important;box-shadow:none!important;background:transparent!important;border:0!important}
