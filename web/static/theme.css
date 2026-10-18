@@ -201,3 +201,8 @@ summary{background:transparent}
 .steps{margin-top:26px}
 .steps span{border-color:var(--blue-100);background:var(--blue-50);color:var(--blue-600);font-weight:700}
 .guide-item{margin-bottom:14px}
+
+/* Brand mark in the overview hero */
+#briefing.page-heading::after{width:116px;height:116px;border-radius:30px;background:#fff url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Cg%20fill%3D%22none%22%20stroke-width%3D%226.5%22%20stroke-linecap%3D%22round%22%3E%3Cpath%20d%3D%22M19%2032V14H30%22%20stroke%3D%22%234285f4%22%2F%3E%3Cpath%20d%3D%22M30%2014A18%2018%200%200%201%2048%2032%22%20stroke%3D%22%23ea4335%22%2F%3E%3Cpath%20d%3D%22M48%2032A18%2018%200%200%201%2030%2050%22%20stroke%3D%22%23fbbc05%22%2F%3E%3Cpath%20d%3D%22M30%2050H19V32%22%20stroke%3D%22%2334a853%22%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M26.5%2032.5l4.5%204.5%208-8.8%22%20fill%3D%22none%22%20stroke%3D%22%231a73e8%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/86px no-repeat;box-shadow:0 12px 30px rgba(0,0,0,.18);right:44px}
+#briefing.page-heading form{margin-right:180px}
+.brand .app-brand-icon,.mobile-brand .app-brand-icon{border-radius:11px}

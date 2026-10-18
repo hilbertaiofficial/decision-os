@@ -1,5 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DecisionOS">
-  <rect x="1" y="1" width="62" height="62" rx="15" fill="#fff" stroke="#dadce0" stroke-width="1.5"/>
-  <path d="M20 15H31a17 17 0 0 1 0 34H20Z" fill="none" stroke="#1a73e8" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M26.5 32.5l4.5 4.5 8.5-9.5" fill="none" stroke="#34a853" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DecisionOS"><rect x="1" y="1" width="62" height="62" rx="16" fill="#fff" stroke="#dadce0" stroke-width="1.5"/><g fill="none" stroke-width="6.5" stroke-linecap="round"><path d="M19 32V14H30" stroke="#4285f4"/><path d="M30 14A18 18 0 0 1 48 32" stroke="#ea4335"/><path d="M48 32A18 18 0 0 1 30 50" stroke="#fbbc05"/><path d="M30 50H19V32" stroke="#34a853"/></g><path d="M26.5 32.5l4.5 4.5 8-8.8" fill="none" stroke="#1a73e8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
