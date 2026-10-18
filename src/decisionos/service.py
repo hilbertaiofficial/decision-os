@@ -366,6 +366,69 @@ class Service:
         self.store.event('Ask DecisionOS: ' + text[:120], org_id=org, actor=actor)
         return reply, created
 
+    DEMO_PREFERENCES = ('Never commit to delivery dates, pricing or scope changes without my approval.',
+                        'Customer-facing outage updates go out within the hour and are tracked in the Jira incident.',
+                        'Keep replies short and friendly; sign emails as Alex.')
+    DEMO_TEMPLATE_TTL = 12 * 3600
+
+    def demo_template(self):
+        meta = self.store.one('demo_templates', {'id': 'current'})
+        if not meta or meta.get('status') != 'ready': return None
+        return meta
+
+    def refresh_demo_template(self, force=False):
+        """Build a ready-made demo workspace (sample data plus a finished briefing) that new demos clone instantly."""
+        meta = self.store.one('demo_templates', {'id': 'current'})
+        if meta and not force and meta.get('status') == 'ready' and time.time() - meta.get('created', 0) < self.DEMO_TEMPLATE_TTL: return meta
+        org = self.store.insert('organizations', {'name': 'Demo template', 'status': 'active', 'template': True, 'config': dict(self.store.settings(), mode='demo'),
+                                                  'created': time.time(), 'auth_revision': 0, 'plan': 'pro', 'trial_briefings_used': 0})
+        self.seed(org['id'])
+        for rule in self.DEMO_PREFERENCES:
+            self.store.insert('preferences', {'org_id': org['id'], 'rule': rule, 'created_by': None, 'created': time.time()})
+        rid = self.request_run(org['id'])
+        self.run(rid)
+        run = self.store.one('runs', {'id': rid})
+        if not run or run['status'] not in ('succeeded', 'partial'): return meta
+        for queued in self.store.find('actions', {'org_id': org['id'], 'status': 'queued'}):
+            self.execute_action(queued['id'])
+        self.store.update('jobs', {'org_id': org['id'], 'active': True}, {'status': 'done', 'active': False, 'finished': time.time()}, many=True)
+        previous = meta.get('org_id') if meta else None
+        values = {'org_id': org['id'], 'run_id': rid, 'status': 'ready', 'created': time.time(), 'engine': run.get('engine')}
+        if meta: self.store.update('demo_templates', {'id': 'current'}, values)
+        else: self.store.insert('demo_templates', dict(values, id='current'))
+        if previous and previous != org['id']:
+            for collection in ('connections', 'items', 'actions', 'runs', 'jobs', 'preferences', 'events'):
+                self.store.delete(collection, {'org_id': previous})
+            self.store.delete('organizations', {'id': previous})
+        return self.store.one('demo_templates', {'id': 'current'})
+
+    def clone_demo(self, org_id):
+        """Copy the ready-made demo into a new workspace. Returns False if no template is ready yet."""
+        meta = self.demo_template()
+        if not meta: return False
+        source = meta['org_id']
+        self.seed(org_id)
+        by_identity = {c['identity']: c for c in self.store.connections('demo', org_id)}
+        conn_map = {c['id']: by_identity[c['identity']] for c in self.store.connections('demo', source) if c['identity'] in by_identity}
+        item_map = {}
+        now = time.time()
+        for row in self.store.find('items', {'org_id': source}):
+            new = dict(row, id=uid(), org_id=org_id, connection_id=conn_map[row['connection_id']]['id'], updated=now, created=now)
+            self.store.insert('items', new); item_map[row['id']] = new
+        for row in self.store.find('actions', {'org_id': source}, sort=[('created', 1)]):
+            item = item_map.get(row['item_id'])
+            if not item or row['connection_id'] not in conn_map: continue
+            conn = conn_map[row['connection_id']]
+            copy = self.store.insert('actions', dict(row, id=uid(), org_id=org_id, item_id=item['id'], connection_id=conn['id'], label=conn['label'],
+                snapshot=item, approved_by=('policy' if row.get('approved_by') == 'policy' else None), created=now, updated=now,
+                fingerprint=hashlib.sha256(json.dumps([org_id, item['id'], item['revision'], row['kind']]).encode()).hexdigest()))
+            if copy['status'] == 'queued': self.store.enqueue('action', copy['id'], org_id)
+        run = self.store.one('runs', {'id': meta['run_id']})
+        if run:
+            self.store.insert('runs', dict(run, id=uid(), org_id=org_id, active=False, requested_by=None, created=now, finished=now))
+        self.store.event('Demo workspace loaded with a ready briefing.', org_id=org_id)
+        return True
+
     def approve(self,aid,org,payload=None,actor=None):
         self.authorize(org,actor,('owner','admin','member'))
         action=self.action(aid,org)

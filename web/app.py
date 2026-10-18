@@ -141,15 +141,16 @@ def create_app(test_config=None):
         user=store.insert('users',{'email':'guest-'+secrets.token_hex(6)+'@demo.decisionos.app','name':'Demo user','password_hash':accounts_dummy_hash,
             'verified':True,'guest':True,'created':time.time()})
         org=store.create_organization(user['id'],'Acme · Release team (demo)')
-        service.seed(org['id'])
-        for rule in ('Never commit to delivery dates, pricing or scope changes without my approval.',
-                     'Customer-facing outage updates go out within the hour and are tracked in the Jira incident.',
-                     'Keep replies short and friendly; sign emails as Alex.'):
+        for rule in service.DEMO_PREFERENCES:
             store.insert('preferences',{'org_id':org['id'],'rule':rule,'created_by':user['id'],'created':time.time()})
+        preloaded=service.clone_demo(org['id'])
+        if not preloaded:service.seed(org['id'])
         session.clear();session['auth_token']=accounts.new_session(user);session['org']=org['id']
-        try:service.request_run(org['id'],user['id'])
-        except ValueError:pass
-        flash('Demo workspace ready. Gemini is reading the sample Gmail, Calendar, Jira, Slack and GitHub data now; results appear in a few seconds.','success')
+        if preloaded:flash('Demo workspace ready: Gemini has already connected the dots across sample Gmail, Calendar, Jira, Slack and GitHub.','success')
+        else:
+            try:service.request_run(org['id'],user['id'])
+            except ValueError:pass
+            flash('Demo workspace ready. Gemini is reading the sample data now; results appear in a few seconds.','success')
         return redirect(url_for('index'))
 
     @app.route('/signup',methods=['GET','POST'])

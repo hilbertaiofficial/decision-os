@@ -40,7 +40,14 @@ class Worker:
             except ValueError:pass
             self.store.setting('next_run',time.time()+settings['interval_minutes']*60,org['id'])
         job=self.store.claim_job(self.owner)
-        if not job:return
+        if not job:
+            if time.time()-getattr(self,'template_checked',0)>300:
+                self.template_checked=time.time()
+                token=self.store.execution_owner.set(self.owner)
+                try:self.service.refresh_demo_template()
+                except Exception:log.exception('Demo template refresh failed')
+                finally:self.store.execution_owner.reset(token)
+            return
         token=self.store.execution_owner.set(self.owner)
         try:
             self.store.check_execution()
