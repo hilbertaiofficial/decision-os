@@ -1,11 +1,14 @@
 """Work collection, Gemini planning, policy gating, and durable action execution."""
 import hashlib
+import logging
 import re
 import json
 import time
 from datetime import datetime, timedelta, timezone
 from .store import uid, DuplicateKeyError
 from . import gemini
+
+log = logging.getLogger(__name__)
 from .integrations import GoogleConnector, JiraConnector, GitHubConnector, SlackConnector, Transport, IntegrationError, UncertainDelivery, item
 
 ACTION_KINDS = {
@@ -311,6 +314,7 @@ class Service:
             sites = conn['metadata'].get('selected_sites', [])
             data = {'site': sites[0] if sites else 'demo'}
             payload['project'] = str(payload['project']).upper()
+            payload['issue_type'] = {'task': 'Task', 'bug': 'Bug', 'story': 'Story'}.get(str(payload['issue_type']).strip().lower(), payload['issue_type'] or 'Task')
         titles = {'email_send': lambda: 'Email to ' + payload['to'] + ' · ' + payload['subject'],
                   'calendar_create': lambda: 'New event · ' + payload['title'],
                   'jira_create': lambda: 'New ' + str(payload['issue_type']) + ' in ' + payload['project'] + ' · ' + payload['summary'],
@@ -355,6 +359,7 @@ class Service:
             reply = gemini.ask(text, context, act_on_item, create_new, gemini_client)
             self.store.update('commands', {'id': command['id']}, {'reply': reply, 'status': 'done', 'actions': len(created)})
         except Exception as exc:
+            if not isinstance(exc, ValueError): log.exception('Ask DecisionOS failed')
             message = str(exc) if isinstance(exc, ValueError) else 'Gemini could not finish this request. Try again.'
             self.store.update('commands', {'id': command['id']}, {'reply': message, 'status': 'failed'})
             raise ValueError(message) from None

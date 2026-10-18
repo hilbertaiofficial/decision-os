@@ -56,6 +56,16 @@ def client():
     return genai.Client(api_key=os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY'))
 
 
+def generate(gemini_client, **kwargs):
+    """One retry for transient model or network errors."""
+    import time
+    for attempt in range(2):
+        try: return gemini_client.models.generate_content(**kwargs)
+        except Exception:
+            if attempt: raise
+            time.sleep(1.5)
+
+
 def clean_payload(payload):
     return {k: v for k, v in dict(payload or {}).items() if v not in (None, '')}
 
@@ -69,7 +79,7 @@ def plan(context, propose, gemini_client=None):
                                          automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True))
     contents = [types.Content(role='user', parts=[types.Part.from_text(text='Review this workspace snapshot and prepare appropriate actions:\n' + json.dumps(context))])]
     for _ in range(MAX_TURNS):
-        response = gemini_client.models.generate_content(model=model_name(), contents=contents, config=config)
+        response = generate(gemini_client, model=model_name(), contents=contents, config=config)
         calls = response.function_calls or []
         if not calls:
             return (response.text or '').strip() or 'The review finished without a written briefing.'
@@ -87,7 +97,7 @@ def plan(context, propose, gemini_client=None):
     final = types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT, tools=tools, temperature=0.2,
                                         tool_config=types.ToolConfig(function_calling_config=types.FunctionCallingConfig(mode='NONE')))
     contents.append(types.Content(role='user', parts=[types.Part.from_text(text='Write the final briefing now.')]))
-    response = gemini_client.models.generate_content(model=model_name(), contents=contents, config=final)
+    response = generate(gemini_client, model=model_name(), contents=contents, config=final)
     return (response.text or '').strip() or 'The review finished without a written briefing.'
 
 
@@ -124,7 +134,7 @@ def ask(request, context, act_on_item, create_new, gemini_client=None):
                                          automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True))
     contents = [types.Content(role='user', parts=[types.Part.from_text(text='Workspace context:\n' + json.dumps(context) + '\n\nRequest: ' + request)])]
     for _ in range(MAX_TURNS):
-        response = gemini_client.models.generate_content(model=model_name(), contents=contents, config=config)
+        response = generate(gemini_client, model=model_name(), contents=contents, config=config)
         calls = response.function_calls or []
         if not calls:
             return (response.text or '').strip() or 'Nothing was prepared. Try rephrasing the request.'
