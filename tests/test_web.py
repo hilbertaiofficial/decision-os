@@ -106,8 +106,10 @@ class PortalTests(unittest.TestCase):
         self.assertIsNone(self.accounts.session_user(token))
 
     def test_sample_run_is_deduplicated(self):
-        self.seed_run();self.seed_run()
-        self.assertEqual(len(self.service.snapshot('personal')['actions']),6)
+        self.seed_run();first=len(self.service.snapshot('personal')['actions'])
+        self.seed_run()
+        self.assertEqual(first,len(self.service.SAMPLE_PLAN))
+        self.assertEqual(len(self.service.snapshot('personal')['actions']),first)
 
     def test_approval_executes_edited_payload_once(self):
         self.seed_run();a=next(a for a in self.service.snapshot('personal')['actions'] if a['kind']=='slack_reply')

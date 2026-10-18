@@ -142,6 +142,10 @@ def create_app(test_config=None):
             'verified':True,'guest':True,'created':time.time()})
         org=store.create_organization(user['id'],'Acme · Release team (demo)')
         service.seed(org['id'])
+        for rule in ('Never commit to delivery dates, pricing or scope changes without my approval.',
+                     'Customer-facing outage updates go out within the hour and are tracked in the Jira incident.',
+                     'Keep replies short and friendly; sign emails as Alex.'):
+            store.insert('preferences',{'org_id':org['id'],'rule':rule,'created_by':user['id'],'created':time.time()})
         session.clear();session['auth_token']=accounts.new_session(user);session['org']=org['id']
         flash('Demo workspace ready with sample accounts. Run a briefing to see Gemini connect the dots.','success')
         return redirect(url_for('index'))

@@ -36,20 +36,32 @@ class Service:
 
     def seed(self, org_id):
         for provider, label, identity in [('google', 'alex@example.com', 'sample-google'), ('jira', 'Acme · product team', 'sample-jira'), ('slack', 'Acme Slack', 'sample-slack'), ('github', 'acme-inc/product', 'sample-github')]:
-            self.store.connect(provider, label, {}, {'identity': identity, 'channels': [{'id': 'CDEMO', 'name': 'team-product'}], 'repos': [{'full_name': 'acme-inc/product'}]}, mode='demo', org_id=org_id)
+            self.store.connect(provider, label, {}, {'identity': identity, 'channels': [{'id': 'CDEMO', 'name': 'team-product'}, {'id': 'CINC', 'name': 'incidents'}], 'repos': [{'full_name': 'acme-inc/product'}]}, mode='demo', org_id=org_id)
         self.store.event('Sample accounts added. These never contact external services.',org_id=org_id)
 
     def samples(self, provider):
-        tomorrow = datetime.now(timezone.utc).date() + timedelta(days=1)
+        """Sample workspace: a release-scope decision, a customer escalation, a blocked SDK upgrade, and routine noise."""
+        today = datetime.now(timezone.utc).date()
+        tomorrow, friday = today + timedelta(days=1), today + timedelta(days=(4 - today.weekday()) % 7 or 7)
+        def slot(day, start, end): return {'start': {'dateTime': f'{day}T{start}:00+00:00'}, 'end': {'dateTime': f'{day}T{end}:00+00:00'}}
         if provider == 'google':
             return [item('email', 'sample-newsletter', 'Your weekly product digest', 'The latest product news. No reply needed.', {'sender': 'Product Weekly <news@example.com>', 'reply_to': 'news@example.com', 'subject': 'Your weekly product digest'}),
-                    item('email', 'sample-client', 'Can we add a mobile redesign to this sprint?', 'Could we include the mobile version this week? Please confirm the cost and timeline.', {'sender': 'Priya <priya@example.com>', 'reply_to': 'priya@example.com', 'subject': 'Can we add a mobile redesign to this sprint?'}),
-                    item('calendar', 'sample-meeting', 'Product planning with Alex', 'Review this week’s priorities together.', {'start': {'dateTime': str(tomorrow) + 'T15:00:00+00:00'}, 'end': {'dateTime': str(tomorrow) + 'T15:30:00+00:00'}, 'pending': True, 'organizer': {'email': 'alex@example.com'}})]
+                    item('email', 'sample-client', 'Can we add a mobile redesign to this sprint?', 'Hi Alex, could we include the mobile version of the new checkout in Friday\'s release? Our board demo is next Tuesday. Please confirm the cost and timeline. Thanks, Priya (Acme Retail)', {'sender': 'Priya Sharma <priya@acmeretail.example>', 'reply_to': 'priya@acmeretail.example', 'subject': 'Can we add a mobile redesign to this sprint?'}),
+                    item('email', 'sample-escalation', 'URGENT: EU customers cannot complete checkout', 'Since 09:10 CET roughly 30% of our EU card payments fail with a 500 error at the final step. This is costing us orders every minute. Can you give us an ETA and a workaround? Daniel Weber, Head of E-commerce, Northwind', {'sender': 'Daniel Weber <daniel@northwind.example>', 'reply_to': 'daniel@northwind.example', 'subject': 'URGENT: EU customers cannot complete checkout'}),
+                    item('email', 'sample-offer', 'Offer approval needed: Maya Chen, Senior Backend Engineer', 'Maya accepted verbally at the top of band. We need your approval on the written offer by Thursday or she will take the competing offer. Compensation details are in the attached ATS link. Ritu (Talent)', {'sender': 'Ritu Kapoor <ritu@hilbert.example>', 'reply_to': 'ritu@hilbert.example', 'subject': 'Offer approval needed: Maya Chen, Senior Backend Engineer'}),
+                    item('email', 'sample-security', 'Security alert: new sign-in from an unrecognized device', 'A new sign-in to your account was detected from Chrome on Windows near Frankfurt. If this was you, no action is needed. Otherwise, review your account activity using the link below.', {'sender': 'Account Security <no-reply@accounts.example>', 'reply_to': 'no-reply@accounts.example', 'subject': 'Security alert: new sign-in from an unrecognized device'}),
+                    item('calendar', 'sample-meeting', 'Product planning with Alex', 'Review this week\'s priorities together, including the mobile checkout request.', dict(slot(tomorrow, '15:00', '15:30'), pending=True, organizer={'email': 'alex@example.com'})),
+                    item('calendar', 'sample-release-review', 'Friday release go/no-go', 'Final go/no-go for the 4.2 release. Agenda: scope changes, open blockers (ACME-24, ACME-27), incident status.', dict(slot(friday, '10:00', '10:45'), pending=True, organizer={'email': 'release-manager@hilbert.example'})),
+                    item('calendar', 'sample-standup', 'Daily stand-up', 'Team stand-up.', dict(slot(tomorrow, '09:30', '09:45'), pending=False, organizer={'email': 'alex@example.com'}))]
         if provider == 'jira':
-            return [item('jira', 'sample-issue', 'ACME-24 · Mobile navigation polish', 'Blocked: waiting for approved mobile scope before implementation.', {'key': 'ACME-24', 'status': 'Blocked', 'priority': 'Medium', 'site_name': 'Acme'})]
+            return [item('jira', 'sample-issue', 'ACME-24 · Mobile navigation polish', 'Blocked: waiting for approved mobile scope before implementation. Estimate if added: 3 extra engineering days.', {'key': 'ACME-24', 'status': 'Blocked', 'priority': 'Medium', 'site_name': 'Acme'}),
+                    item('jira', 'sample-incident', 'ACME-31 · Checkout returns 500 for EU card payments', 'Error rate on /checkout/confirm rose to 31% for EU cards after the 09:00 deploy. Suspected cause: payment SDK region config. Assignee: Arjun. No customer comms sent yet.', {'key': 'ACME-31', 'status': 'In Progress', 'priority': 'Highest', 'site_name': 'Acme'}),
+                    item('jira', 'sample-sdk', 'ACME-27 · Upgrade payments SDK to v5', 'Blocked on security review sign-off. The v4 SDK reaches end of support on the 30th. Release 4.2 depends on this.', {'key': 'ACME-27', 'status': 'Blocked', 'priority': 'High', 'site_name': 'Acme'})]
         if provider == 'github':
-            return [item('github', 'sample-pr', 'acme-inc/product#142 · Mobile nav: gate behind feature flag', 'Ready for review once the mobile scope question is resolved with the client.', {'repo': 'acme-inc/product', 'number': 142, 'is_pr': True})]
-        return [item('slack', 'sample-thread', '#team-product · Can someone confirm the mobile scope?', 'Can someone confirm whether the mobile redesign is included this sprint? ACME-24 is blocked until we know.', {'channel': 'CDEMO', 'channel_name': 'team-product', 'thread_ts': 'sample-thread'})]
+            return [item('github', 'sample-pr', 'acme-inc/product#142 · Mobile nav: gate behind feature flag', 'Ready for review once the mobile scope question is resolved with the client.', {'repo': 'acme-inc/product', 'number': 142, 'is_pr': True}),
+                    item('github', 'sample-pr-sdk', 'acme-inc/product#148 · Upgrade payments SDK to v5', 'CI: 2 failing checks (eu-region config tests). Waiting on security review. Linked: ACME-27.', {'repo': 'acme-inc/product', 'number': 148, 'is_pr': True})]
+        return [item('slack', 'sample-thread', '#team-product · Can someone confirm the mobile scope?', 'Can someone confirm whether the mobile redesign is included this sprint? ACME-24 is blocked until we know, and engineering needs 3 more days if it is in.', {'channel': 'CDEMO', 'channel_name': 'team-product', 'thread_ts': 'sample-thread'}),
+                item('slack', 'sample-incident-thread', '#incidents · Spike in checkout 500s (EU)', 'Arjun: rolled back the 09:00 deploy on one node, error rate down to 12% but not zero. Support is asking what to tell Northwind. Who owns customer comms on this?', {'channel': 'CINC', 'channel_name': 'incidents', 'thread_ts': 'sample-incident-thread'})]
 
     def in_scope(self, connection, source):
         if connection['mode'] == 'demo': return True
@@ -187,23 +199,35 @@ class Service:
             self.store.update('runs',{'id':rid},{'status':'failed','active':False,'error':error,'finished':time.time()})
             self.store.event('A briefing needs attention.','error',org_id=org)
 
+    SAMPLE_PLAN = {
+        'sample-newsletter': ('email_mark_read', {}, 'This newsletter needs no response. Clear it from unread items.'),
+        'sample-client': ('email_draft', {'body': 'Hi Priya, thanks for the request. Adding mobile checkout to Friday\'s release would need about three more engineering days, so I\'m reviewing scope with the team at tomorrow\'s planning session and will confirm options and timing right after.'}, 'Same scope decision as ACME-24, PR #142 and the #team-product thread. Avoids committing to dates or cost before the planning review.'),
+        'sample-escalation': ('email_draft', {'body': 'Hi Daniel, we\'re treating this as our highest priority. A partial rollback has already reduced failures and the team is working on a full fix now. I\'ll send the next update within the hour.'}, 'Matches ACME-31 and the #incidents thread. No customer update has been sent yet; this gives a holding reply without promising an ETA.'),
+        'sample-offer': ('email_draft', {'body': 'Thanks Ritu. I\'ll review Maya\'s written offer today and get back to you before Thursday.'}, 'Compensation approval is a consequential decision for you; this only acknowledges the deadline.'),
+        'sample-security': ('email_mark_read', {}, 'Unverified security notification. Check account activity directly in the provider rather than through links in the email.'),
+        'sample-meeting': ('calendar_rsvp', {'response': 'accepted'}, 'Tomorrow\'s planning is where the mobile scope decision gets made. No conflicts found.'),
+        'sample-release-review': ('calendar_rsvp', {'response': 'accepted'}, 'Go/no-go depends on ACME-24, ACME-27 and the checkout incident. Your attendance is needed.'),
+        'sample-issue': ('jira_comment', {'body': 'Client has asked to add mobile scope to Friday\'s release; engineering estimates 3 extra days. Keeping this blocked until the scope decision at tomorrow\'s planning session.'}, 'Links the client email, the Slack question and PR #142 to one decision.'),
+        'sample-incident': ('jira_comment', {'body': 'Customer impact confirmed by Northwind (EU card payments failing). Holding reply sent to the customer; next customer update due within the hour. Please post root cause and fix ETA here.'}, 'Ties the customer escalation to the incident so engineering and support share one status.'),
+        'sample-sdk': ('jira_comment', {'body': 'Security review sign-off is the blocker for 4.2. v4 support ends on the 30th. Requesting security review this week.'}, 'Release 4.2 depends on this; raises the blocker before the Friday go/no-go.'),
+        'sample-pr': ('github_comment', {'body': 'Holding until the mobile scope is confirmed with the client. See ACME-24.'}, 'This PR implements the scope that is still awaiting a decision.'),
+        'sample-pr-sdk': ('github_comment', {'body': 'The failing eu-region config checks may relate to the ACME-31 checkout incident. Please confirm before merging.'}, 'The failing EU config tests overlap with the live EU checkout incident.'),
+        'sample-thread': ('slack_reply', {'body': 'Mobile scope isn\'t confirmed yet. The client asked for it in Friday\'s release; we\'ll decide at tomorrow\'s planning. ACME-24 stays blocked until then.'}, 'Answers the team with the same facts as the client email and Jira issue.'),
+        'sample-incident-thread': ('slack_reply', {'body': 'I\'ll own customer comms for Northwind. Holding reply drafted; I\'ll post updates in ACME-31. Arjun, please share root cause and ETA when you have it.'}, 'Resolves the missing owner for customer communication on the incident.'),
+    }
+
     def sample_plan(self, org, mode, sources):
         for source in sources:
-            kind = source['kind']
-            if source['external_id'] == 'sample-newsletter':
-                action, payload, reason = 'email_mark_read', {}, 'This newsletter needs no response. Clear it from unread items.'
-            elif kind == 'email':
-                action, payload, reason = 'email_draft', {'body': 'Thanks for raising this. I’ll check the scope and timeline with the team before confirming any additional work.'}, 'Prepare a reply without committing to unapproved scope, cost, or dates.'
-            elif kind == 'calendar':
-                action, payload, reason = 'calendar_rsvp', {'response': 'accepted'}, 'A planning invitation is ready for your review. Confirm the time before accepting.'
-            elif kind == 'jira':
-                action, payload, reason = 'jira_comment', {'body': 'The mobile scope is awaiting confirmation. Let’s keep this issue blocked until the client request is reviewed.'}, 'The client email and ACME-24 refer to the same scope decision.'
-            elif kind == 'github':
-                action, payload, reason = 'github_comment', {'body': 'Holding this for review until the mobile scope is confirmed with the client — see ACME-24.'}, 'The PR implements the same mobile scope that is still awaiting client confirmation.'
-            else:
-                action, payload, reason = 'slack_reply', {'body': 'The mobile scope is still awaiting confirmation. ACME-24 should remain blocked until that decision is made.'}, 'Prepare a thread reply that reflects the client request and Jira blocker.'
-            self.propose(org, mode, source['id'], action, payload, reason)
-        return 'Sample simulation — no external services or AI model were called.\n\nPrepared a client reply draft, identified a newsletter to clear, and brought a meeting invitation, Jira comment, and Slack thread reply to your decision queue. The client email, Jira blocker, and Slack question share the same scope decision.\n\nReview the exact content before approving. Repeated briefings skip unchanged items.'
+            plan = self.SAMPLE_PLAN.get(source['external_id'])
+            if plan: self.propose(org, mode, source['id'], *plan)
+        return ('Sample simulation: no external services or AI model were called.\n\n'
+                '## Decisions needing you\n'
+                '- **Checkout incident (Northwind, EU):** customer email, ACME-31 and #incidents describe the same outage. Holding reply, Jira update and Slack ownership reply are ready.\n'
+                '- **Mobile scope for Friday:** client email, ACME-24, PR #142 and #team-product are one decision. Reply, Jira comment and Slack answer are ready; decide at tomorrow\'s planning.\n'
+                '- **Release 4.2 go/no-go:** ACME-27 and PR #148 are blocked on security review; accept Friday\'s review.\n'
+                '- **Offer approval:** Maya Chen\'s offer needs your approval by Thursday.\n\n'
+                '## Handled or informational\n'
+                '- Newsletter cleared. The security alert is unverified; check account activity directly in the provider.')
 
     def engine(self, settings):
         """Live mode always plans with Gemini. Sample accounts use Gemini when it is configured, else a scripted plan."""
