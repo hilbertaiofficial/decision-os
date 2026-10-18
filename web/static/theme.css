@@ -207,3 +207,12 @@ summary{background:transparent}
 #briefing.page-heading form{margin-right:180px}
 .brand .app-brand-icon,.mobile-brand .app-brand-icon{border-radius:11px}
 @media(max-width:1280px){#briefing.page-heading::after{display:none}#briefing.page-heading form{margin-right:0}#briefing.page-heading>div{max-width:100%}}
+
+/* Compact overview header (no hero banner) */
+#briefing.page-heading.overview-head{background:none;box-shadow:none;color:var(--ink);padding:4px 0 0;border-radius:0;overflow:visible}
+#briefing.page-heading.overview-head::after{display:none}
+#briefing.page-heading.overview-head>div{max-width:none}
+#briefing.page-heading.overview-head h1{color:var(--ink);font-size:30px;margin-bottom:4px}
+#briefing.page-heading.overview-head p:last-child{color:var(--muted);font-size:14px}
+#briefing.page-heading.overview-head form{margin-right:0}
+#briefing.page-heading.overview-head .btn.primary{background:linear-gradient(135deg,#1a73e8,#4f46e5);color:#fff;box-shadow:0 6px 16px rgba(26,115,232,.28)}
